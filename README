@@ -1,0 +1,79 @@
+
+1. Introduction
+
+This a toolkit for extracting lexical entries from the Apertium (http://www.apertium.org/) dictionaries
+and adding them to Grammatical Framework (GF, http://www.grammaticalframework.org/).
+It is addressed to the English->Spanish language pair and direction, but could be easily extended to
+other language pairs.
+It also includes a rudimentary script for running GF as an open-domain translator.
+
+
+2. Extracting the Apertium lexicon
+
+The lexical entries extracted from Apertium are encoded in 3 GF modules: an abstract syntax "ApertiumLexicon"
+and their concrete implementations "ApertiumLexiconEng" (English) and "ApertiumLexiconSpa" (Spanish).
+The script "extractApertiumLexicon.sh" generates them. Apertium executables (in particular, "lt-expand") must
+be in the path.
+
+2.1 Creating Abstract syntax
+
+Run: ./extractApertiumLexicon.sh --only_abstract --sl_mono_dictionary ENGLISH_MONOLINGUAL_DICTIONARY.dix  [ --valencies_from_dict VALENCIES_FILE ] [ --black_list BLACK_LIST_FILE ] > ApertiumLexicon.gf
+
+If the option "black_list" is activated, a list of lexical functions must be provided (in a separate file BLACK_LIST_FILE, one lexical function name per line) and no fuction definitions for the lexical functions provided in the list will be generated.
+This is useful when one do not want to override the lexical functions already present in GF.
+
+If the option "valencies_from_dict" is activated, valencies of verbs are taken from the file VALENCIES_FILE. It must contain one lexical function name per line. Therefore, if the verb with lemma "print" is to be extracted from Apertium, functions with
+the form print_V2, print_V3, print_VS, print_VV, print_VA or print_VQ are searched in VALENCIES_FILE and included in the generated abstract syntax. If none of them is found, the function name for the verb will be verb_V.
+
+2.2 Creating English concrete syntax
+
+Run: ./extractApertiumLexicon.sh  --sl_mono_dictionary ENGLISH_MONOLINGUAL_DICTIONARY.dix  [ --valencies_from_dict VALENCIES_FILE ] [ --black_list BLACK_LIST_FILE ] > ApertiumLexiconEng.gf
+
+Options "valencies_from_dict" and "black_list" have the same meaning as before and should be used here if they have been used when
+generating the abstract syntax.
+
+2.3 Creating Spanish concrete syntax
+
+Run: ./extractApertiumLexicon.sh  --tl_mono_dictionary SPANISH_MONOLINGUAL_DICTIONARY.dix --bi_dictionary BILINGUAL_DICTIOANRY.dix  [ --valencies_from_dict VALENCIES_FILE ] [ --black_list BLACK_LIST_FILE ] > ApertiumLexiconEng.gf
+
+Options "valencies_from_dict" and "black_list" have the same meaning as before and should be used here if they have been used when
+generating the abstract syntax.
+
+
+3. Estimating probablities for the new lexical functions
+
+The PGF robust parser needs a probablity for each lexical function in order to properly work.
+This toolkit provides a script to create a new probablities file containing probablities
+for the new words extracted from Apertium. It assumes that a new system is created with
+a subset of the words originally defined in DictEng.gf and the new words extracted from 
+Apertium, and the probablities of the words originally present in DictEng.gf are already calculated. 
+The probability distribution for each lexical category of the new system can be seen as:
+
+alpha*[sum of probablities of words whose probablities are already calculated] + (1 - alpha)*[sum of probablities of words whose probablities are not calculated] 
+
+alpha is a parameter of the script. It normalises the probablities of the known words so that they sum up alpha, and
+assigns the same probability to each unknown word.
+
+Run: ./createProbabilitiesFile.sh --abstract_gf ApertiumLexicon.gf --abstract_gf_dict DictEngAbs.gf --probabilities_file ParseEngAbs.prob --alpha_known alpha
+
+Note that DictEngAbs.gf is not the original Dict abstract syntax, but only a the subset of it which will be used in 
+the final robust translator.
+
+
+4. Running an open-domain translator
+
+A really rudimentary open-domain translator based in GF is also included in this package.
+It could be useful to test how the Apertium-extracted lexical functions behave when translating open-domain texts.
+
+The translator firts tokenizes, lowercases and segments (each chunk between ".","!" or "?" is considered a separate sentence) each line of the input text. Then, it parses each segment. After that, each parse tree (either total or partial) is linearised.
+Finally, all the linearisations and segments are joined together and the text is detokenised and case-restored. The
+resulting file always contains the same number of lines than the input file.
+
+Note that the executable programs "pgf-translate" and "gf" must be in the path. It also requires 
+the file ParseEngAbs3.probs to be the same directory.
+
+Run: ./robustTranslationGF.sh --source_language SOURCE_LANGUAGE --target_language TARGET_LANGUAGE --source_pgf SOURCE_PGF --target_pgf TARGET_PGF <INPUT_FILE >OUTPUT_FILE
+
+
+
+
