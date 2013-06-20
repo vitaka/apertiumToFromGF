@@ -2,19 +2,64 @@
 CURDIR=`dirname $0`
 
 ############################################
-# 
-#
-############################################<<<
+# Creates GF Lexicon entries from the Apertium data
+############################################
 
 
 #shflags
 . ./shflags
+
+######################
+# (you must either either use --sl_mono_dictionary to set the Apertium SL monolingual dictionary 
+# and generate GF SL data or --tl_mono_dictionary and --bi_dictionary to use Apertium bilingual dictionary
+# and TL monolingual dictionary to generate GF TL data)
+# Apertium SL monolingual dictionary file (it must be a .dix file)
+######################
 DEFINE_string 'sl_mono_dictionary' '' 'SL monolingual dictionary' 'd'
+
+#######################
+#(you must either either use --sl_mono_dictionary to set the Apertium SL monolingual dictionary 
+# and generate GF SL data or --tl_mono_dictionary and --bi_dictionary to use Apertium bilingual dictionary
+# and TL monolingual dictionary to generate GF TL data)
+# Apertium TL monolingual dictionary file (it must be a .dix file)
+######################
 DEFINE_string 'tl_mono_dictionary' '' 'TL monolingual dictionary' 't'
+
+#######################
+#(you must either either use --sl_mono_dictionary to set the Apertium SL monolingual dictionary 
+# and generate GF SL data or --tl_mono_dictionary and --bi_dictionary to use Apertium bilingual dictionary
+# and TL monolingual dictionary to generate GF TL data)
+# Apertium bilingual dictionary file (it must be a .dix file)
+######################
 DEFINE_string 'bi_dictionary' '' 'bilingual dictionary' 'b'
-DEFINE_string 'black_list' '' 'File containint list of tokens which are already present in GF' 'l'
+
+#################################
+# (optional)
+# File containing, one per line, a list of lexical function names (such as car_N) which
+# will not be generated from Apertium
+################################
+DEFINE_string 'black_list' '' 'File containing list of tokens which are already present in GF' 'l'
+
+#################################
+# (optional,flag)
+# Only generate abstract syntax tokens, but not their linearization. Use it only with the
+# SL dictionary
+################################
 DEFINE_boolean 'only_abstract' 'false' 'print only abstract syntax tokens' 'a'
+
+#################################
+# (optional)
+# File containing, one per line, a list of lexical function names (such as print_VS).
+# Valencies of verbs are taken from that file. Therefore, 
+# if the verb with lemma "print" is to be extracted from Apertium, functions with
+# the form print_V2, print_V3, print_VS, print_VV, print_VA or print_VQ are searched in VALENCIES_FILE and included in the # generated abstract syntax. If none of them is found, the function name for the verb will be print_V.
+################################
 DEFINE_string 'valencies_from_dict' '' 'GF dictionary file from which valencies are extracted' 'v'
+
+#################################
+# (optional,flag)
+# Do not extract multiword units from Apertium
+################################
 DEFINE_boolean 'no_multiwords' 'false' 'do not generate multiword entries' 'n'
 FLAGS "$@" || exit $?
 eval set -- "${FLAGS_ARGV}"

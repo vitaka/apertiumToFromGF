@@ -51,7 +51,7 @@ done
 #join svg files
 for number in `find $TMPDIR -name 'tree.*.svg' | sed -r 's:.*\.([0-9]+)\.[0-9]+.svg$:\1:' | sort | uniq`; do
 	FILES=`find $TMPDIR -name "tree.$number.*.svg" | tr '\n' ' '`
-	python $PYDIR/svg_stack.py --direction=h --margin=0 $FILES > $DIR/tree.$number.svg
+	python $PYDIR/lib/svg_stack.py --direction=h --margin=0 $FILES > $DIR/tree.$number.svg
 done
 
 #remove tmp dir
