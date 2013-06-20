@@ -1,0 +1,15 @@
+eclipse.preferences.version=1
+encoding//lib/abstractLearningLib.py=utf-8
+encoding//lib/ruleLearningLib.py=utf-8
+encoding/extractCandidateMWEs.py=utf-8
+encoding/extractParallelTrees.py=utf-8
+encoding/filterFinalMWEs.py=utf-8
+encoding/groupLeftSides.py=utf-8
+encoding/printOnlyFunName.py=utf-8
+encoding/printOnlyFunNameAndChildren.py=utf-8
+encoding/selectBilingualPhrasesWithExtremesAligned.py=utf-8
+encoding/selectMWEs.py=utf-8
+encoding/selectNonEquivalentParallelTrees.py=utf-8
+encoding/selectRules.py=utf-8
+encoding/showRelevantRules.py=utf-8
+encoding/unlexicalise.py=utf-8

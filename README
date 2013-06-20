@@ -1,3 +1,5 @@
+Apertium to/from GF
+===================
 
 1. Introduction
 
@@ -56,7 +58,7 @@ assigns the same probability to each unknown word.
 
 Run: ./createProbabilitiesFile.sh --abstract_gf ApertiumLexicon.gf --abstract_gf_dict DictEngAbs.gf --probabilities_file ParseEngAbs.prob --alpha_known alpha
 
-Note that DictEngAbs.gf is not the original Dict abstract syntax, but only a the subset of it which will be used in 
+Note that DictEngAbs.gf is not the original Dict abstract syntax, but only a subset of it which will be used in 
 the final robust translator.
 
 
@@ -72,8 +74,5 @@ resulting file always contains the same number of lines than the input file.
 Note that the executable programs "pgf-translate" and "gf" must be in the path. It also requires 
 the file ParseEngAbs3.probs to be the same directory.
 
-Run: ./robustTranslationGF.sh --source_language SOURCE_LANGUAGE --target_language TARGET_LANGUAGE --source_pgf SOURCE_PGF --target_pgf TARGET_PGF <INPUT_FILE >OUTPUT_FILE
-
-
-
+Run: ./robustTranslationGF.sh --source_language SOURCE_LANGUAGE --target_language TARGET_LANGUAGE --source_pgf SOURCE_PGF --target_pgf TARGET_PGF <INPUT_FILE >OUTPUT_FILE 2>DEBUG_INFORMATION
 

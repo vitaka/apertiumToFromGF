@@ -1,6 +1,6 @@
 #! /bin/bash
 
-#Takes original DictEng.gf or DictEngAbs.gf, removes words from open categories, restores entries originally from GF used in the Spanish side.
+#Takes original DictEng.gf or DictEngAbs.gf, removes words from open categories, restores entries originally from GF used in the Spanish side, i.e., words in LexiconSpa
 
 DICTENGFILE=$1
 WHITELIST=$2

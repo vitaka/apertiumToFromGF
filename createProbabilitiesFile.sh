@@ -1,11 +1,12 @@
 # ! /bin/bash
 CURDIR=`dirname $0`
+PYDIR=$CURDIR/src/py
 
 
 #shflags
 . $CURDIR/shflags
 DEFINE_string 'abstract_gf' '' 'Abstract syntax generated from Apertium' 's'
-DEFINE_string 'abstract_gf_dict' '' 'Abstract syntax of words fromn GF' 'd'
+DEFINE_string 'abstract_gf_dict' '' 'Abstract syntax of words from GF' 'd'
 DEFINE_string 'probabilities_file' '' 'Original probabilities file' 'p'
 DEFINE_float 'alpha_known' '0.9' '' 'a'
 DEFINE_boolean 'keep_tmp_dir' 'false' 'do not remove temporal dir' 'k'
@@ -56,7 +57,7 @@ for c in `cat $TMPDIR/abstractcats` ; do
 	fi
 	
 	#normalise probabilities of known words and multiply them by alpha_known
-	TOTAL_PROB=`cat $TMPDIR/result-denormalized-$c | cut -f 2 | python $CURDIR/sumFloating.py`
+	TOTAL_PROB=`cat $TMPDIR/result-denormalized-$c | cut -f 2 | python $PYDIR/sumFloating.py`
 	cat $TMPDIR/result-denormalized-$c | cut -f 2 | sed "s:\$: * $ALPHAFORKNOWN / $TOTAL_PROB:" | python -c "import sys;[ sys.stdout.write('{0:0.16e}'.format(eval(line))+'\\n') for line in sys.stdin ]" > $TMPDIR/normalized-probs-$c
 	cat $TMPDIR/result-denormalized-$c | cut -f 1 | paste - $TMPDIR/normalized-probs-$c > $TMPDIR/result-known-with-probs-$c
 done
