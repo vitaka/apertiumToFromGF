@@ -1,3 +1,9 @@
 No need to install or compile anything.
-The package contains just bash scripts and python programs,
-A bash shell and a python interpreter (2.6+) are required.
+The package contains just bash and python scripts,
+Apertium, GF, a bash shell and a python interpreter (2.6+) are required.
+
+The following additional packages are required for learning multi-word expressions from parallel corpora:
+- GF python bindings
+- moreutils (http://joeyh.name/code/moreutils/), which provides the command-line tool "parallel"
+- Python PuLP (http://pythonhosted.org/PuLP/main/installing_pulp_at_home.html)
+- The Moses statistical machine translation toolkit (http://www.statmt.org/moses/)
