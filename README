@@ -6,8 +6,7 @@ Apertium to/from GF
 This a toolkit for extracting lexical entries from the Apertium (http://www.apertium.org/) dictionaries
 and adding them to Grammatical Framework (GF, http://www.grammaticalframework.org/).
 It is addressed to the English->Spanish language pair and direction, but could be easily extended to
-other language pairs.
-It also includes a rudimentary script for running GF as an open-domain translator.
+other language pairs. This toolkit also implememts an algorithm for extracting GF multi-word expressions from parallel corpora (section 5). It also includes a simple script for running GF as an open-domain translator (section 4)
 
 
 2. Extracting the Apertium lexicon
@@ -61,7 +60,6 @@ Run: ./createProbabilitiesFile.sh --abstract_gf ApertiumLexicon.gf --abstract_gf
 Note that DictEngAbs.gf is not the original Dict abstract syntax, but only a subset of it which will be used in 
 the final robust translator.
 
-
 4. Running an open-domain translator
 
 A really rudimentary open-domain translator based in GF is also included in this package.
@@ -72,7 +70,28 @@ Finally, all the linearisations and segments are joined together and the text is
 resulting file always contains the same number of lines than the input file.
 
 Note that the executable programs "pgf-translate" and "gf" must be in the path. It also requires 
-the file ParseEngAbs3.probs to be the same directory.
+the file ParseEngAbs3.probs to be in the same directory.
 
 Run: ./robustTranslationGF.sh --source_language SOURCE_LANGUAGE --target_language TARGET_LANGUAGE --source_pgf SOURCE_PGF --target_pgf TARGET_PGF <INPUT_FILE >OUTPUT_FILE 2>DEBUG_INFORMATION
+
+5. Extracting multi-word expressions from a parallel corpus
+
+Expressions which are encoded with different trees in different languages 
+should be added to the GF abstract syntax and concrete syntaxes in order
+to be translated properly by a GF-based open-domain translator. This toolkit
+implements a method to extract these kind of expressions automatically from
+a parallel corpus. It is aimed at multi-word expressions "with gaps", as, for 
+instance: "developing [noun]" (English) -> "[noun] en desarrollo" (Spanish).
+The steps to be followed in order to obtain a set of parallel multi-word expressions from
+a parallel corpus are:
+	1. Clean the parallel corpus (./prepareCorpusForLearningAbstractSyntax.sh)
+	2. Parse both sides of the corpus (./robustTranslationGF --output_is_tree_raw)
+	3. Align parallel corpus (./alignParallelCorpus.sh)
+	4. Extract multi-word expressions (./learnAbstractSyntax.sh)
+
+An example of how this steps are combined can be found in the examples directory and a detailed
+descrition of the parameters is provided in the source code of each script.
+
+
+
 

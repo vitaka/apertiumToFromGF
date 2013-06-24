@@ -1,0 +1,32 @@
+
+Example of multi-word expression extraction
+===========================================
+
+1. Download and unpack the example corpus and GF data
+
+	wget http://www.dlsi.ua.es/~vmsanchez/news-commentary-v8.es-en.tar.gz
+	tar xzf news-commentary-v8.es-en.tar.gz
+
+	wget http://www.dlsi.ua.es/~vmsanchez/GFWithAPertiumLexiconPGFs-en-es.tar.gz
+	tar xzf GFWithAPertiumLexiconPGFs-en-es.tar.gz
+
+2. Clean parallel corpus and take a small piece to perform the experiments
+
+	bash $APERTIUMTOFROMGFDIR/prepareCorpusForLearningAbstractSyntax.sh --source_language en --target_language es --input_corpus ./news-commentary-v8.es-en --output_corpus ./news-commentary-v8.es-en.prepared
+
+	head -n 500 news-commentary-v8.es-en.prepared.en > news-commentary-v8.es-en.prepared.h500.en
+	head -n 500 news-commentary-v8.es-en.prepared.es > news-commentary-v8.es-en.prepared.h500.es
+
+3. Parse both sides of the corpus (it may take some time)
+
+	bash $APERTIUMTOFROMGFDIR/robustTranslationGF.sh --source_language ParseEng --source_pgf ./ParseEngAbs.pgf --output_is_tree_raw < news-commentary-v8.es-en.prepared.h500.en  > news-commentary-v8.es-en.prepared.h500.treesraw.en
+
+	bash $APERTIUMTOFROMGFDIR/robustTranslationGF.sh --source_language ParseSpa --source_pgf ./ParseEngSpa.pgf --output_is_tree_raw < news-commentary-v8.es-en.prepared.h500.es  > news-commentary-v8.es-en.prepared.h500.treesraw.es
+
+4. Align parallel corpus (this step can be performed in parallel with the previous one). The file $MOSES_SCRIPTS_DIRECTORY/training/train-model.perl, which is the main Moses training script, must exist.
+
+	bash $APERTIUMTOFROMGFDIR/alignParallelCorpus.sh --source_language en --target_language es --corpus news-commentary-v8.es-en.prepared.h500 --moses_scripts_dir $MOSES_SCRIPTS_DIRECTORY > news-commentary-v8.es-en.prepared.h500.bilphrases
+
+5. Extract multi-word expressions. The directory ./mwes-h500 will contain a file finalmwes-$THRESHOLD.gz for different values of the threshold.
+
+	bash $APERTIUMTOFROMGFDIR/learnAbstractSyntax.sh --trees_file news-commentary-v8.es-en.prepared.h500.treesraw --source_language en --target_language es --source_pgf ./ParseEngAbs.pgf --target_pgf ./ParseEngSpa.pgf --learn_mwe_with_alignments news-commentary-v8.es-en.prepared.h500.bilphrases --tmp_dir ./mwes-h500 --keep_tmp_dir
