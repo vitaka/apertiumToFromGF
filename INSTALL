@@ -6,4 +6,5 @@ The following additional packages are required for learning multi-word expressio
 - GF python bindings
 - moreutils (http://joeyh.name/code/moreutils/), which provides the command-line tool "parallel"
 - Python PuLP (http://pythonhosted.org/PuLP/main/installing_pulp_at_home.html)
+- Python argparse module
 - The Moses statistical machine translation toolkit (http://www.statmt.org/moses/)

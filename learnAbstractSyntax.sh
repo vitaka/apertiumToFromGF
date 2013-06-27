@@ -8,8 +8,8 @@ PYDIR=$CURDIR/src/py
 # a parallel corpus.
 #
 # Results are found in $TMPDIR (see parameters below)
-#   - finalmwes-$THRESHOLD.gz contains MWES with gaps
-#   - finalmwes-no-wildcards-$THRESHOLD.gz contains MWES without gaps
+#   - finalmwes-sym-$THRESHOLD.gz contains MWES with gaps
+#   - finalmwes-sym-no-wildcards-$THRESHOLD.gz contains MWES without gaps
 ################################################
 
 #Values for LD_LIBRARY_PATH and PYTHON_PATH. Change them accordingly
@@ -119,110 +119,96 @@ if [ "${FLAGS_learn_mwe_with_alignments}" != "" ] ; then
 	fi
 	
 	#Extract parallel trees
-	OUTPUT=$TMPDIR/parallelTreesWithBilingualPhrasesLexicalised.gz
+	OUTPUT="$TMPDIR/pairs.gz $TMPDIR/pairs-inv.gz"
 	files_exist $OUTPUT
 	if [ $? != 0 ]; then
-		paste -d '~' $TMPDIR/trees.clean.sl $TMPDIR/trees.clean.tl $TMPDIR/bilingualPhrases | LD_LIBRARY_PATH=$VAR_LD_LIBRARY_PATH PYTHONPATH=$VAR_PYTHON_PATH python $PYDIR/extractParallelTrees.py --source_pgf ${FLAGS_source_pgf} --target_pgf ${FLAGS_target_pgf} --with_bilingual_phrases  --create_bilingual_dictionary $TMPDIR/bilingualDictionary 2> $TMPDIR/parallelTreesWithBilingualPhrases.debug | gzip > $OUTPUT
-	fi
-	
-	
-	OUTPUT="$TMPDIR/candidatemwes.gz $TMPDIR/candidatemwes-inv.gz"
-	files_exist $OUTPUT
-	if [ $? != 0 ]; then
+		paste -d '~' $TMPDIR/trees.clean.sl $TMPDIR/trees.clean.tl $TMPDIR/bilingualPhrases | LD_LIBRARY_PATH=$VAR_LD_LIBRARY_PATH PYTHONPATH=$VAR_PYTHON_PATH python $PYDIR/extractParallelTrees.py --source_pgf ${FLAGS_source_pgf} --target_pgf ${FLAGS_target_pgf} --with_bilingual_phrases  --create_bilingual_dictionary $TMPDIR/bilingualDictionary 2> $TMPDIR/parallelTreesWithBilingualPhrases.debug | gzip > $TMPDIR/parallelTreesWithBilingualPhrasesLexicalised.gz
+		
 		#remove context
 		zcat $TMPDIR/parallelTreesWithBilingualPhrasesLexicalised.gz | cut -f 2,4 -d '|' | sed 's:^ *::' | gzip > $TMPDIR/parallelTreesWithBilingualPhrasesLexicalisedNoContext.gz
 		
 		#count
 		zcat $TMPDIR/parallelTreesWithBilingualPhrasesLexicalisedNoContext.gz | LC_ALL=C sort | uniq -c |  sed 's:^ *::' | sed 's: : | :' | gzip > $TMPDIR/pairs.gz
 		
-		#extract candidate MWEs
-		zcat $TMPDIR/pairs.gz | LD_LIBRARY_PATH=$VAR_LD_LIBRARY_PATH PYTHONPATH=$VAR_PYTHON_PATH python $PYDIR/extractCandidateMWEs.py --use_synonyms $TMPDIR/bilingualDictionary | LC_ALL=C sort | uniq |  gzip > $TMPDIR/candidatemwes-withrepresentatives.gz
-		
-		#remove representative and and re-sort if necessary
-		zcat $TMPDIR/candidatemwes-withrepresentatives.gz | awk -F"|" '{print $3 "|" $4}' | sed 's:^ *::' | gzip > $TMPDIR/candidatemwes.gz
-		zcat $TMPDIR/candidatemwes-withrepresentatives.gz | awk -F"|" '{print $2 "|" $4 "|" $3 }' | sed 's:\([^ ]\)|:\1 |:' |  sed 's:^ *::' | sed 's: *$::' | LC_ALL=C sort | awk -F"|" '{print $2 "|" $3}' | sed 's:^ *::' | gzip > $TMPDIR/candidatemwes-inv.gz
-	fi
-	
-	OUTPUT="$TMPDIR/mwes-dir.gz $TMPDIR/mwes-inv.gz"
-	files_exist $OUTPUT
-	if [ $? != 0 ]; then
-
 		#invert pairs
 		zcat $TMPDIR/pairs.gz | awk -F"|" '{print $1 "|" $3 "|" $2}' |  sed 's:\([^ ]\)|:\1 |:' | gzip > $TMPDIR/pairs-inv.gz
-		
-		rm -Rf $TMPDIR/candidates
-		rm -Rf $TMPDIR/candidates-inv
-		
-		mkdir -p $TMPDIR/candidates
-		mkdir -p $TMPDIR/candidates-inv
-		
-		zcat $TMPDIR/candidatemwes.gz | LD_LIBRARY_PATH=$VAR_LD_LIBRARY_PATH PYTHONPATH=$VAR_PYTHON_PATH python $PYDIR/splitCandidateMWEsinGroups.py --groups_dir $TMPDIR/candidates
-		zcat $TMPDIR/candidatemwes-inv.gz | LD_LIBRARY_PATH=$VAR_LD_LIBRARY_PATH PYTHONPATH=$VAR_PYTHON_PATH python $PYDIR/splitCandidateMWEsinGroups.py --groups_dir $TMPDIR/candidates-inv
-		
-		
-		#select MWEs in parallel
-		find $TMPDIR/candidates/  -not -type d > $TMPDIR/candidates-list
-		find $TMPDIR/candidates-inv/  -not -type d > $TMPDIR/candidates-inv-list
-		
-		parallel -i bash -c "cat {} | LD_LIBRARY_PATH=$VAR_LD_LIBRARY_PATH PYTHONPATH=$VAR_PYTHON_PATH python $PYDIR/selectMWEs.py --bilingual_exprs $TMPDIR/pairs.gz --use_synonyms $TMPDIR/bilingualDictionary --debug 2> {}.debug  | gzip > {}.result.gz" -- `cat $TMPDIR/candidates-list` &
-		PID1=$!
-		
-		parallel -i bash -c "cat {} | LD_LIBRARY_PATH=$VAR_LD_LIBRARY_PATH PYTHONPATH=$VAR_PYTHON_PATH python $PYDIR/selectMWEs.py --bilingual_exprs $TMPDIR/pairs-inv.gz --use_synonyms $TMPDIR/bilingualDictionary.inv --debug 2> {}.debug  | gzip > {}.result.gz" -- `cat $TMPDIR/candidates-inv-list` &
-		PID2=$!
-		
-		wait $PID1 $PID2
-		
-		#reduce parallel results
-		rm -f $TMPDIR/mwes-dir $TMPDIR/mwes-dir.gz
-		for FPREFIX in `cat $TMPDIR/candidates-list`; do
-			zcat ${FPREFIX}.result.gz >> $TMPDIR/mwes-dir
-		done
-		gzip $TMPDIR/mwes-dir
-		
-		#reduce parallel results
-		rm -f $TMPDIR/mwes-inv $TMPDIR/mwes-inv.gz
-		for FPREFIX in `cat $TMPDIR/candidates-inv-list`; do
-			zcat ${FPREFIX}.result.gz >> $TMPDIR/mwes-inv
-		done
-		gzip $TMPDIR/mwes-inv
 	fi
 	
-	OUTPUT="$TMPDIR/mwes-structural-and-lowprobincluded.gz"
+	OUTPUT="$TMPDIR/candidatemwes-sym.gz"
 	files_exist $OUTPUT
 	if [ $? != 0 ]; then
-		zcat $TMPDIR/mwes-dir.gz | python $PYDIR/filterMWEsByProp.py --min_prop_reproduced 0.0 | LD_LIBRARY_PATH=$VAR_LD_LIBRARY_PATH PYTHONPATH=$VAR_PYTHON_PATH python $PYDIR/filterFinalMWEs.py   --different_sides > $TMPDIR/mwes-structural-and-lowprobincluded
-		gzip $TMPDIR/mwes-structural-and-lowprobincluded
+		#extract candidate MWEs
+		zcat $TMPDIR/pairs.gz | LD_LIBRARY_PATH=$VAR_LD_LIBRARY_PATH PYTHONPATH=$VAR_PYTHON_PATH python $PYDIR/extractCandidateMWEs.py --use_synonyms $TMPDIR/bilingualDictionary --inverse_synonyms | LC_ALL=C sort | uniq |  gzip > $TMPDIR/candidatemwes-withrepresentatives-sym.gz
+		
+		#remove representative and and re-sort if necessary
+		zcat $TMPDIR/candidatemwes-withrepresentatives-sym.gz | awk -F"|" '{print $3 "|" $4}' | sed 's:^ *::' | gzip > $TMPDIR/candidatemwes-sym.gz
+	fi
+	
+	
+	OUTPUT="$TMPDIR/mwes-dir-sym.gz $TMPDIR/mwes-inv-sym.gz"
+	files_exist $OUTPUT
+	if [ $? != 0 ]; then
+		
+		rm -Rf $TMPDIR/candidates-sym
+		
+		mkdir -p $TMPDIR/candidates-sym
+		
+		zcat $TMPDIR/candidatemwes-sym.gz | LD_LIBRARY_PATH=$VAR_LD_LIBRARY_PATH PYTHONPATH=$VAR_PYTHON_PATH python $PYDIR/splitCandidateMWEsinGroups.py --groups_dir $TMPDIR/candidates-sym
+		
+		#select MWEs in parallel
+		find $TMPDIR/candidates-sym/  -not -type d > $TMPDIR/candidates-list-sym
+		
+		parallel -i bash -c "cat {} | LD_LIBRARY_PATH=$VAR_LD_LIBRARY_PATH PYTHONPATH=$VAR_PYTHON_PATH python $PYDIR/selectMWEs.py --bilingual_exprs $TMPDIR/pairs.gz --use_synonyms $TMPDIR/bilingualDictionary --inverse_synonyms --debug 2> {}.debug  | gzip > {}.result.gz" -- `cat $TMPDIR/candidates-list-sym` &
+		PID1=$!
+		
+		wait $PID1
+		
+		#reduce parallel results
+		rm -f $TMPDIR/mwes-sym $TMPDIR/mwes-sym.gz
+		for FPREFIX in `cat $TMPDIR/candidates-list-sym`; do
+			zcat ${FPREFIX}.result.gz >> $TMPDIR/mwes-dir-sym
+		done
+		gzip $TMPDIR/mwes-dir-sym
+		
+		zcat $TMPDIR/mwes-dir-sym.gz | cut -f 3,4 -d '|'  | awk -F"|" '{print $2 " |" $1}' | sed 's:^ *::' |  LD_LIBRARY_PATH=$VAR_LD_LIBRARY_PATH PYTHONPATH=$VAR_PYTHON_PATH python $PYDIR/selectMWEs.py --only_print_scores --bilingual_exprs $TMPDIR/pairs-inv.gz --use_synonyms $TMPDIR/bilingualDictionary --inverse_synonyms --invert_synonym_direction | gzip > $TMPDIR/mwes-inv-sym.gz
+		
+	fi
+	
+	OUTPUT="$TMPDIR/mwes-structural-and-lowprobincluded-sym.gz"
+	files_exist $OUTPUT
+	if [ $? != 0 ]; then
+		zcat $TMPDIR/mwes-dir-sym.gz | python $PYDIR/filterMWEsByProp.py --min_prop_reproduced 0.0 | LD_LIBRARY_PATH=$VAR_LD_LIBRARY_PATH PYTHONPATH=$VAR_PYTHON_PATH python $PYDIR/filterFinalMWEs.py --different_sides  > $TMPDIR/mwes-structural-and-lowprobincluded-sym
+		gzip $TMPDIR/mwes-structural-and-lowprobincluded-sym
 	fi
 	
 	for THRESHOLD in 0.51 `LC_ALL=C seq 0.55 0.05 0.95` ; do
-		OUTPUT="$TMPDIR/mwes-dir-filtered-$THRESHOLD.gz $TMPDIR/mwes-inv-filtered-$THRESHOLD.gz"
+		OUTPUT="$TMPDIR/mwes-dir-sym-filtered-$THRESHOLD.gz $TMPDIR/mwes-inv-sym-filtered-$THRESHOLD.gz"
 		files_exist $OUTPUT
 		if [ $? != 0 ]; then
 			#filter results
-			zcat $TMPDIR/mwes-dir.gz | python $PYDIR/filterMWEsByProp.py --min_prop_reproduced $THRESHOLD | gzip > $TMPDIR/mwes-dir-filtered-$THRESHOLD.gz
-			zcat $TMPDIR/mwes-inv.gz | python $PYDIR/filterMWEsByProp.py --min_prop_reproduced $THRESHOLD | gzip > $TMPDIR/mwes-inv-filtered-$THRESHOLD.gz
-		fi
+			zcat $TMPDIR/mwes-dir-sym.gz | python $PYDIR/filterMWEsByProp.py --min_prop_reproduced $THRESHOLD | gzip > $TMPDIR/mwes-dir-sym-filtered-$THRESHOLD.gz
+			zcat $TMPDIR/mwes-inv-sym.gz | python $PYDIR/filterMWEsByProp.py --min_prop_reproduced $THRESHOLD | gzip > $TMPDIR/mwes-inv-sym-filtered-$THRESHOLD.gz
+		fi	
 		
-		
-		OUTPUT="$TMPDIR/finalmwes-$THRESHOLD.gz $TMPDIR/finalmwes-no-wildcards-$THRESHOLD.gz"
+		OUTPUT="$TMPDIR/finalmwes-sym-$THRESHOLD.gz $TMPDIR/finalmwes-sym-no-wildcards-$THRESHOLD.gz"
 		files_exist $OUTPUT
 		if [ $? != 0 ]; then
 			#choose intersection
-			zcat  $TMPDIR/mwes-dir-filtered-$THRESHOLD.gz | LC_ALL=C sort >  $TMPDIR/mwes-dir-sorted-$THRESHOLD
-			zcat  $TMPDIR/mwes-inv-filtered-$THRESHOLD.gz | awk -F"|" '{print $2 "|" $1}' | sed 's:^ *::' | sed 's: *$::' | sed 's:|: | :' | LC_ALL=C sort > $TMPDIR/mwes-inv-sorted-$THRESHOLD
-			LC_ALL=C comm -12 $TMPDIR/mwes-dir-sorted-$THRESHOLD $TMPDIR/mwes-inv-sorted-$THRESHOLD | gzip > $TMPDIR/mwes-$THRESHOLD.gz
+			zcat  $TMPDIR/mwes-dir-sym-filtered-$THRESHOLD.gz | LC_ALL=C sort >  $TMPDIR/mwes-dir-sym-sorted-$THRESHOLD
+			zcat  $TMPDIR/mwes-inv-sym-filtered-$THRESHOLD.gz | awk -F"|" '{print $2 "|" $1}' | sed 's:^ *::' | sed 's: *$::' | sed 's:|: | :' | LC_ALL=C sort > $TMPDIR/mwes-inv-sym-sorted-$THRESHOLD
+			LC_ALL=C comm -12 $TMPDIR/mwes-dir-sym-sorted-$THRESHOLD $TMPDIR/mwes-inv-sym-sorted-$THRESHOLD | gzip > $TMPDIR/mwes-sym-$THRESHOLD.gz
 			
 			#filter mwes: first remove compositionally equivalent
-			zcat $TMPDIR/mwes-$THRESHOLD.gz | LD_LIBRARY_PATH=$VAR_LD_LIBRARY_PATH PYTHONPATH=$VAR_PYTHON_PATH python $PYDIR/addCompositionallyEquivalentRefsMWEs.py --use_synonyms $TMPDIR/bilingualDictionary --additional_references $TMPDIR/mwes-structural-and-lowprobincluded.gz | gzip > $TMPDIR/mwescomp-$THRESHOLD.gz
+			zcat $TMPDIR/mwes-sym-$THRESHOLD.gz | LD_LIBRARY_PATH=$VAR_LD_LIBRARY_PATH PYTHONPATH=$VAR_PYTHON_PATH python $PYDIR/addCompositionallyEquivalentRefsMWEs.py --use_synonyms $TMPDIR/bilingualDictionary --inverse_synonyms --additional_references $TMPDIR/mwes-structural-and-lowprobincluded-sym.gz | gzip > $TMPDIR/mwescomp-sym-$THRESHOLD.gz
 			
 			#finally, remove those without lexical functions, without wildcards, or which are the same in both languages
-			zcat $TMPDIR/mwescomp-$THRESHOLD.gz | LD_LIBRARY_PATH=$VAR_LD_LIBRARY_PATH PYTHONPATH=$VAR_PYTHON_PATH python $PYDIR/filterFinalMWEs.py --different_sides --contains_non_wildcard --contains_wildcard | grep -v -F "othermwe" | gzip > $TMPDIR/finalmwes-$THRESHOLD.gz
+			zcat $TMPDIR/mwescomp-sym-$THRESHOLD.gz | LD_LIBRARY_PATH=$VAR_LD_LIBRARY_PATH PYTHONPATH=$VAR_PYTHON_PATH python $PYDIR/filterFinalMWEs.py --different_sides --contains_non_wildcard --contains_wildcard --use_synonyms $TMPDIR/bilingualDictionary --inverse_synonyms | grep -v -F "othermwe" | gzip > $TMPDIR/finalmwes-sym-$THRESHOLD.gz
 			
-			zcat $TMPDIR/mwescomp-$THRESHOLD.gz | LD_LIBRARY_PATH=$VAR_LD_LIBRARY_PATH PYTHONPATH=$VAR_PYTHON_PATH python $PYDIR/filterFinalMWEs.py --different_sides --not_contains_wildcard | grep -v -F "othermwe" | gzip > $TMPDIR/finalmwes-no-wildcards-$THRESHOLD.gz
+			zcat $TMPDIR/mwescomp-sym-$THRESHOLD.gz | LD_LIBRARY_PATH=$VAR_LD_LIBRARY_PATH PYTHONPATH=$VAR_PYTHON_PATH python $PYDIR/filterFinalMWEs.py --different_sides --not_contains_wildcard --use_synonyms $TMPDIR/bilingualDictionary --inverse_synonyms | grep -v -F "othermwe" | gzip > $TMPDIR/finalmwes-sym-no-wildcards-$THRESHOLD.gz
 		fi
 	done
 	
-	zcat $TMPDIR/finalmwes-0.70.gz
+	zcat $TMPDIR/finalmwes-sym-0.70.gz
 else
 	echo "ERROR: Parameter learn_mwe_with_alignments not set"
 fi

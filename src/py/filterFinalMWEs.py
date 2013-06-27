@@ -1,8 +1,10 @@
 #!/usr/local/bin/python
 # encoding: utf-8
 
-import sys,argparse
-from lib.abstractLearningLib import ParallelMWE
+from lib.abstractLearningLib import ParallelMWE, \
+    GFProbabilisticBilingualDictionary
+import sys
+import argparse
 
 if __name__ == "__main__":
     
@@ -13,9 +15,14 @@ if __name__ == "__main__":
     parser.add_argument('--contains_non_wildcard',action='store_true')
     parser.add_argument('--contains_wildcard',action='store_true')
     parser.add_argument('--not_contains_wildcard',action='store_true')
+    parser.add_argument('--use_synonyms')
+    parser.add_argument('--inverse_synonyms',action='store_true')
     args = parser.parse_args(sys.argv[1:])
     
     inputSource=sys.stdin
+    
+    if args.use_synonyms:
+        ParallelMWE.load_synonym_dict(args.use_synonyms, args.inverse_synonyms)
     
     for line in inputSource:
         line=line.strip()

@@ -35,7 +35,7 @@ DEFINE_string 'corpus' '' 'corpus file prefix' 'c'
 # (compulsory)
 # Directory where the Moses scripts are installed
 ######################
-DEFINE_string 'moses_scripts_dir' '/home/vmsanchez/wmt/tools/moses-scripts/' 'directory where the moses scripts are installed' 'm'
+DEFINE_string 'moses_scripts_dir' '/home/vmsanchez/wmt/tools/moses-scripts/' 'directory where the moses scripts are installed.' 'm'
 
 ######################
 # (optional, flag)

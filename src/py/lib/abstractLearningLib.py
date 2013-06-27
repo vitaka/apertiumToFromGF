@@ -4,17 +4,16 @@
 
 import sys, math
 from pulp import *
-from pickle import OBJ
-
 
 try:
     import pgf
 except ImportError:
     pass
 
-from operator import itemgetter, attrgetter
+from operator import  attrgetter
 from collections import namedtuple
 
+#
 class Debugger(object):
     DEBUG = None
     
@@ -37,6 +36,9 @@ def set_debug(p_debug):
     Debugger.set_debug(p_debug)
 
 
+
+#Wrapper object for the bracketed representation from the GF python API
+#It containes some additional information useful for extracting parallel trees
 class ExtendedBracket(object):
     openCategories = set(["A", "N", "N2", "N3", "PN", "Adv", "V", "V2", "V3", "VS", "V2S", "VV", "V2V", "VA", "V2A", "VQ", "V2Q", "String"])
     
@@ -100,9 +102,10 @@ class ExtendedBracket(object):
     def is_alignment_compatible_with_bilphrase_list(self, otherTree, bilphrases):
         return   bilphrases.contains_biligual_phrase(self.linearisation,otherTree.linearisation) and not self.is_leaf() and not otherTree.is_leaf() and self.bracket.cat == otherTree.bracket.cat and (len(self.leaf_functions) > 1 or len(otherTree.leaf_functions) > 1)
     
-    def is_leaf_alignment_compatible_with_bilphrase_list(self, otherTree, bilphrases):
-        return bilphrases.contains_biligual_phrase(self.linearisation,otherTree.linearisation) and self.is_leaf() and otherTree.is_leaf() 
-    
+    def is_leaf_alignment_compatible_with_bilphrase_list(self, otherTree, bilphrases,useOneToOne=False):
+        return bilphrases.contains_biligual_phrase(self.linearisation,otherTree.linearisation,useOneToOne) and self.is_leaf() and otherTree.is_leaf()
+         
+            
     def print_data(self):
         print self.bracket.fun + ":" + self.bracket.cat + " " + str(self.leaf_functions) + " " + str(self.bracket)
         for child in self.children:
@@ -122,29 +125,9 @@ class ExtendedBracket(object):
             return []
         else:
             return [self.parent] + self.parent.get_all_parents()
-    
-    # deprecated. use get_expr() instead
-    def get_function_tree_string(self):
-        if self.is_leaf():
-            return self.bracket.fun
-        else:
-            parts = list()
-            if len(self.children) == 1:
-                parts.append(" ")
-                parts.append(self.bracket.fun)
-                parts.append(" (")
-                parts.append(self.children[0].get_function_tree_string())
-                parts.append(")")
-            else:
-                parts.append(" ")
-                parts.append(self.bracket.fun)
-                for child in self.children:
-                    parts.append(u" (")
-                    parts.append(child.get_function_tree_string())
-                    parts.append(u")")
-            return "".join(parts)
-    
 
+#Wrapper class for the Expr class from the GF python API
+#Contains some additional information useful to detect multi-word expressions
 class ExtendedExpr(object):
     
     WILDCARD_PREFIX = "wildcard_"
@@ -385,6 +368,7 @@ class ExtendedExpr(object):
     def is_par_fun_non_wildcard(fun):
         return not fun.startswith(ExtendedExpr.WILDCARD_PREFIX) and not fun.startswith(ExtendedExpr.WILDCARD_IGNORE)
 
+#Abstract class for a pair of trees
 class AbstractBilingualExpr(object):
     def __init__(self):
         self.freq = 0
@@ -406,16 +390,13 @@ class AbstractBilingualExpr(object):
         self.tlexpr = ExtendedExpr(pgf.readExpr(parts[2 + offset]), None)
         self.tlexpr.compute_leaf_functions_recursively()
     
-    #TODO: ¿mejorar con dic. bilingüe?
-    def is_equal_sides(self):
-        return str(self.slexpr) == str(self.tlexpr)
-    
     def __repr__(self):
         output = str(self.slexpr) + " | " + str(self.tlexpr)
         if self.freq > 0:
             output = str(self.freq) + " | " + output
         return output
 
+#Pair of trees from which bilingual MWEs can be extracted
 class BilingualExpr(AbstractBilingualExpr):
     
     def extract_candidate_mwes(self):
@@ -425,7 +406,6 @@ class BilingualExpr(AbstractBilingualExpr):
         debug("sl leaf functions: " + str(slleafs))
         
         returnList = list()
-        # alignedLeafFuns=[ slleaf for slleaf in slleafs if slleaf in tlleafs ]
         
         leafFunPairs = list()
         FunsWithWildcards = namedtuple('FunsWithWildcards', ['sl', 'tl'])
@@ -433,9 +413,8 @@ class BilingualExpr(AbstractBilingualExpr):
             tlalternatives = list()
             if leaf in tlleafs:
                 tlalternatives.append(leaf)
-            if leaf in ParallelMWE.synonymDict:
-                for syn in ParallelMWE.synonymDict[leaf]:
-                    if syn in tlleafs:
+            for syn in tlleafs:
+                if ParallelMWE.is_synonym(leaf, syn):
                         tlalternatives.append(syn)
             
             if len(tlalternatives) > 0:
@@ -449,9 +428,8 @@ class BilingualExpr(AbstractBilingualExpr):
     def to_parallel_mwe_str(self, functionsToGeneralise):
             return str(self.slexpr.get_non_leaf_funtions()) + " | " + str(self.tlexpr.get_non_leaf_funtions()) + " | " + self.slexpr.str_with_generalised_functions([ [fs.sl] for fs in functionsToGeneralise]) + " | " + self.tlexpr.str_with_generalised_functions([ fs.tl for fs in functionsToGeneralise])
 
-
-class ParallelMWESet(object):
-    
+# Set of parallel multi-word expressions
+class ParallelMWESet(object):   
     def __init__(self):
         self.index = dict()
         self.idcounter = 0
@@ -474,9 +452,44 @@ class ParallelMWESet(object):
         return mwes
     
 
+#Parallel multi-word expression
 class ParallelMWE(AbstractBilingualExpr):
     
     synonymDict = dict()
+    inverseSynonymDict= dict()
+    
+    @classmethod
+    def load_synonym_dict(cls,synFile,inverseToo,invertSynonymDIrection=False):
+        probBilDic=GFProbabilisticBilingualDictionary()
+        myfile=open(synFile,'r')
+        probBilDic.read(myfile)
+        myfile.close()
+        if not invertSynonymDIrection:
+            cls.synonymDict=probBilDic.generate_synonim_dict()
+        else:
+            cls.inverseSynonymDict=probBilDic.generate_synonim_dict()
+        
+        if inverseToo:
+            probBilDic=GFProbabilisticBilingualDictionary()
+            myfile=open(synFile+".inv",'r')
+            probBilDic.read(myfile)
+            myfile.close()
+            if not invertSynonymDIrection:
+                cls.inverseSynonymDict=probBilDic.generate_synonim_dict()
+            else:
+                cls.synonymDict=probBilDic.generate_synonim_dict()
+    
+    @classmethod
+    def is_synonym(cls,fun1,fun2):
+        if fun1.split("_")[-1] in ExtendedBracket.openCategories:
+            if fun1 in cls.synonymDict:
+                if fun2 in cls.synonymDict[fun1]:
+                    return True
+        if fun2.split("_")[-1] in ExtendedBracket.openCategories:
+            if fun2 in cls.inverseSynonymDict:
+                if fun1 in cls.inverseSynonymDict[fun2]:
+                    return True
+        return False
     
     def __init__(self):
         self.bilExprsReproduced = set()
@@ -505,7 +518,29 @@ class ParallelMWE(AbstractBilingualExpr):
     def add_refs_to_sub(self, mweset):
         self.slexpr.add_refs_to_sub(self.tlexpr,mweset)
         
-    
+    #TODO: improve with bilingual dictionary?
+    def is_equal_sides(self):
+        #return str(self.slexpr) == str(self.tlexpr)
+        if self.slexpr.is_leaf() and not self.tlexpr.is_leaf():
+            return False
+        if not self.slexpr.is_leaf() and self.tlexpr.is_leaf():
+            return False
+        
+        if not self.slexpr.is_leaf() and not self.tlexpr.is_leaf():
+            if self.slexpr.fun != self.tlexpr.fun:
+                return False
+            if len(self.slexpr.children) != len(self.tlexpr.children):
+                return False
+            for i in range(len(self.slexpr.children)):
+                newMWE=ParallelMWE()
+                newMWE.set_exprs(self.slexpr.children[i], self.tlexpr.children[i])
+                if not newMWE.is_equal_sides():
+                    return False
+        if self.slexpr.is_leaf() and self.tlexpr.is_leaf():
+            if self.slexpr.fun != self.tlexpr.fun and  not ParallelMWE.is_synonym(self.slexpr.fun, self.tlexpr.fun) :
+                return False
+        return True
+
     def is_bilexpr_matched_or_reproduced(self, bilingualExpr):
         
         MatchedReproduced = namedtuple('MatchedReproduced', ['matched', 'reproduced'])
@@ -542,9 +577,8 @@ class ParallelMWE(AbstractBilingualExpr):
                 # check if is synonym of any word already present
                 isSynonym = False 
                 for slbinded in bindingDict[binding[0]]:
-                    if slbinded in ParallelMWE.synonymDict:
-                        if binding[1] in ParallelMWE.synonymDict[slbinded]:
-                            isSynonym = True
+                    if ParallelMWE.is_synonym(slbinded, binding[1]):
+                        isSynonym = True
                 if not isSynonym:
                     bindingDict[binding[0]].add(binding[1])
 
@@ -575,6 +609,8 @@ class ParallelMWE(AbstractBilingualExpr):
         else:
             return baserepr
 
+#Class used in conjuction with some classes from the portApertiumToGF package.
+#Reads bilingual multi-word expressions from a file
 class MWEReader(object):
     
     s_bilingualexprs = None
@@ -590,6 +626,8 @@ class MWEReader(object):
 
         cls.s_groups.append((mygroup, bilingualExprs))
 
+#Class used in conjuction with some classes from the portApertiumToGF package.
+#Writes a set of MWEs in a file
 class MWESplitter(object):
     def __init__(self,p_groupsdir):
         self.id=0
@@ -602,7 +640,8 @@ class MWESplitter(object):
             myfile.write(str(mwe)+"\n")
         myfile.close()
 
-
+#selects the mininimum amount of MWEs so that each bilingual tree
+#is matched by at least one of them
 def select_mwes(mwesplusbils, threshold=2, minPropReproduced=0.0):
     mygroup = mwesplusbils[0]
     bilingualExprs = mwesplusbils[1]
@@ -685,6 +724,7 @@ class ExprNotFoundException(Exception):
     def __init__(self, blame):
         self.blame = blame
 
+#Pair of bracketed representations
 class Alignment(object):
     def __init__(self, slbracket, slfullexpr, tlbracket, tlfullexpr):
         self.slbracket = slbracket
@@ -713,29 +753,31 @@ class Alignment(object):
     def __repr__(self):
         return self.to_string()
 
-
+#set of bilingual phrases. Helpful when aligning trees
 class BilingualPhraseSet(object):
     
     def __init__(self):
         self.bilingualPhrases=set()
+        self.oneToOnePhrases=set()
     
-    def add(self,rawbilentry,addOneToOne=True):
+    def add(self,rawbilentry):
         parts=rawbilentry.split("|||")
         self.bilingualPhrases.add("|||".join(parts[:2]).strip())
-        if addOneToOne:
-            slwords=parts[0].strip().split(" ")
-            tlwords=parts[1].strip().split(" ")
-            alignmentsstrparts=parts[2].strip().split(" ")
-            for alstr in alignmentsstrparts:
-                slandtlstr= alstr.split("-")
-                slindex=int(slandtlstr[0])
-                tlindex=int(slandtlstr[1])
-                self.bilingualPhrases.add(slwords[slindex]+" ||| "+tlwords[tlindex])
-    
-    def contains_biligual_phrase(self,slphrase,tlphrase):
-        return slphrase+" ||| "+tlphrase in self.bilingualPhrases
         
-
+        #adding one to one alignments, needed for probabilistic dictionary
+        slwords=parts[0].strip().split(" ")
+        tlwords=parts[1].strip().split(" ")
+        alignmentsstrparts=parts[2].strip().split(" ")
+        for alstr in alignmentsstrparts:
+            slandtlstr= alstr.split("-")
+            slindex=int(slandtlstr[0])
+            tlindex=int(slandtlstr[1])
+            self.oneToOnePhrases.add(slwords[slindex]+" ||| "+tlwords[tlindex])
+    
+    def contains_biligual_phrase(self,slphrase,tlphrase,useOneToOne=False):
+        return slphrase+" ||| "+tlphrase in self.bilingualPhrases or ( useOneToOne and slphrase+" ||| "+tlphrase in self.oneToOnePhrases )
+        
+#Probabilistic bilingual dictionary obtained from the aligned leaf nodes
 class GFProbabilisticBilingualDictionary(object):
     def __init__(self):
         self.dict = dict()
@@ -743,7 +785,7 @@ class GFProbabilisticBilingualDictionary(object):
     def extract_entries_from_aligned_trees(self, sourceList, targetList, bilingualPhrases,invert=False):
         for sourceTree in sourceList:
             for targetTree in targetList:
-                if sourceTree.is_leaf_alignment_compatible_with_bilphrase_list(targetTree, bilingualPhrases):
+                if sourceTree.is_leaf_alignment_compatible_with_bilphrase_list(targetTree, bilingualPhrases,useOneToOne=True):
                     if invert:
                         self.increase_pair(targetTree.bracket.fun, sourceTree.bracket.fun)
                     else:
@@ -790,6 +832,7 @@ class GFProbabilisticBilingualDictionary(object):
         return synonymDict    
         
 
+
 class FunFreqPair(object):
     def __init__(self, fun=None, freq=0):
         self.fun = fun
@@ -829,9 +872,6 @@ class FunPairs(object):
     
     def is_empty(self):
         return self.leftFun == None
-    
-    
-
 
 class PairTabReader(object):
     @staticmethod
@@ -901,6 +941,7 @@ def calc_entropy(freqList):
     ent = -ent
     return ent
 
+#splits the representation of partial parse trees provided by the GF robust parser
 def split_partial_parse(line):
     trees = list()
     if line.startswith("?"):

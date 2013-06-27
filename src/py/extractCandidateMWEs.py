@@ -11,17 +11,14 @@ if __name__ == "__main__":
     
     parser = argparse.ArgumentParser(description='Chooses rules.')
     parser.add_argument('--use_synonyms')
+    parser.add_argument('--inverse_synonyms',action='store_true')
     parser.add_argument('--debug', action='store_true')
     args = parser.parse_args(sys.argv[1:])
     
     set_debug(args.debug)
     
     if args.use_synonyms:
-        probBilDic=GFProbabilisticBilingualDictionary()
-        myfile=open(args.use_synonyms,'r')
-        probBilDic.read(myfile)
-        myfile.close()
-        ParallelMWE.synonymDict=probBilDic.generate_synonim_dict()
+        ParallelMWE.load_synonym_dict(args.use_synonyms, args.inverse_synonyms)
     
     for line in sys.stdin:
     #for line in ['1 | BaseNP (UsePN (SymbPN (MkSymb "Wilders"))) (DetCN (DetQuant (PossPron he_Pron) NumPl) (UseN supporter_N)) | BaseNP (UsePN (SymbPN (MkSymb "Wilders"))) (DetCN (DetQuant (PossPron it_Pron) NumPl) (UseN backer_N))']:
