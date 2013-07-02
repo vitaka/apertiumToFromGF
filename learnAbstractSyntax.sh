@@ -158,10 +158,17 @@ if [ "${FLAGS_learn_mwe_with_alignments}" != "" ] ; then
 		#select MWEs in parallel
 		find $TMPDIR/candidates-sym/  -not -type d > $TMPDIR/candidates-list-sym
 		
-		parallel -i bash -c "cat {} | LD_LIBRARY_PATH=$VAR_LD_LIBRARY_PATH PYTHONPATH=$VAR_PYTHON_PATH python $PYDIR/selectMWEs.py --bilingual_exprs $TMPDIR/pairs.gz --use_synonyms $TMPDIR/bilingualDictionary --inverse_synonyms --debug 2> {}.debug  | gzip > {}.result.gz" -- `cat $TMPDIR/candidates-list-sym` &
-		PID1=$!
+		echo "testing whether the parallel command exists"
+		command -v parallel
 		
-		wait $PID1
+		if [ "$?" == "0" ]; then
+		  parallel -i bash -c "cat {} | LD_LIBRARY_PATH=$VAR_LD_LIBRARY_PATH PYTHONPATH=$VAR_PYTHON_PATH python $PYDIR/selectMWEs.py --bilingual_exprs $TMPDIR/pairs.gz --use_synonyms $TMPDIR/bilingualDictionary --inverse_synonyms --debug 2> {}.debug  | gzip > {}.result.gz" -- `cat $TMPDIR/candidates-list-sym`
+		else
+		  for CANDIDATEFILE in `cat $TMPDIR/candidates-list-sym`; do
+		    cat $CANDIDATEFILE | LD_LIBRARY_PATH=$VAR_LD_LIBRARY_PATH PYTHONPATH=$VAR_PYTHON_PATH python $PYDIR/selectMWEs.py --bilingual_exprs $TMPDIR/pairs.gz --use_synonyms $TMPDIR/bilingualDictionary --inverse_synonyms --debug 2> $CANDIDATEFILE.debug  | gzip > $CANDIDATEFILE.result.gz
+		  done
+		fi
+		
 		
 		#reduce parallel results
 		rm -f $TMPDIR/mwes-sym $TMPDIR/mwes-sym.gz
